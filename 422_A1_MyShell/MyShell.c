@@ -4,8 +4,9 @@
 #include <readline/readline.h>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <sys/mman.h>
 
-#define PROMPT "MyShell>"
+#define PROMPT "MyShell> "
 #define ARG_MAX 255
 #define SPLIT_BY " "
 
@@ -13,6 +14,7 @@
 DONOT change the existing function definitions. You can add functions, if necessary.
 */
 
+static int *status;
 
 /**
   @brief Fork a child to execute the command using execvp. The parent should wait for the child to terminate
@@ -20,18 +22,29 @@ DONOT change the existing function definitions. You can add functions, if necess
   @return returns 1, to continue execution and 0 to terminate the MyShell prompt.
  */
 int execute(char **args) {
-    int stat_loc;
+    // create share memory
+    status = mmap(NULL, sizeof *status, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+    // set status to 1 (correct)
+    *status = 1;
     // fork a child process
     int rc = fork();
+    // child - run execvp
     if (rc == 0) {
         execvp(args[0], args);
-        return 0;
-    } else if (rc > 0) {
-        waitpid(rc, &stat_loc, WUNTRACED);
-        return 1;
-    } else {
-        return 0;
+        *status = 0;
+        exit(0);
     }
+        // parent - wait child
+    else if (rc > 0) {
+        wait(NULL);
+        return *status;
+    }
+        // if fork fail
+    else {
+        *status = 0;
+        exit(0);
+    }
+    return 0;
 }
 
 
@@ -42,21 +55,21 @@ int execute(char **args) {
 char **parse(void) {
     // read commands from prompt
     char *cmd = readline(PROMPT);
-    // allocated space
-    char **commands = malloc(ARG_MAX + 1 * sizeof(char *));
+    // allocated space for tokens
+    char **tokens = malloc(ARG_MAX + 1 * sizeof(char *));
     // the index for each argument
     int index = 0;
     // get the pointer that points to the first argument
-    char *parsed = strtok(cmd, SPLIT_BY);
+    char *ptr = strtok(cmd, SPLIT_BY);
     // go through the list and assign the argument string to the pointer
-    while (parsed != NULL) {
-        commands[index++] = parsed;
-        parsed = strtok(NULL, SPLIT_BY);
+    while (ptr != NULL) {
+        tokens[index++] = ptr;
+        ptr = strtok(NULL, SPLIT_BY);
     }
     // make sure the list is null terminated at the correct spot
-    commands[index] = NULL;
+    tokens[index] = NULL;
     // return the arguments
-    return commands;
+    return tokens;
 }
 
 
@@ -72,7 +85,7 @@ int main(int argc, char **argv) {
 
     while (1) {
 
-        // get commands from prompt
+        // get the command from prompt
         args = parse();
 
         // if empty
@@ -84,19 +97,15 @@ int main(int argc, char **argv) {
             break;
         }
 
-        // executed commands
-        int result = execute(args);
-
-        if (result == 0) {
-            printf("Error, incorrect command!\n");
-            return 1;
+        // executing the command
+        if (execute(args) == 0) {
+            printf("Error executing command!\n");
         }
 
         // free the space that was allocated
         free(args);
-
     }
 
     //return EXIT_SUCCESS;
-    return 0;
+    return EXIT_SUCCESS;
 }
