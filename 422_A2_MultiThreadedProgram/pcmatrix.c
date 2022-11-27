@@ -92,15 +92,41 @@ int main (int argc, char * argv[])
 
     printf("MATRIX MULTIPLICATION DEMO:\n\n");
 
-    pthread_t prod1;
-    pthread_t cons1;
     printf("main: begin \n");
 
-    pthread_create(&prod1, NULL, prod_worker, NULL);
-    pthread_create(&cons1, NULL, cons_worker, NULL);
+    numw = 4;
 
-    pthread_join(prod1, NULL);
-    pthread_join(cons1, NULL);
+    pthread_t threads[numw * 2];
+    ProdConsStats *global_stats[numw];
+
+    for (int i = 0; i < numw; ++i) {
+        global_stats[i] = malloc(sizeof(ProdConsStats));
+        global_stats[i]->sumtotal = 0;
+        global_stats[i]->multtotal = 0;
+        global_stats[i]->matrixtotal = 0;
+        pthread_create(&threads[i], NULL, prod_worker, global_stats[i]);
+        pthread_create(&threads[numw + i], NULL, cons_worker, global_stats[i]);
+    }
+
+    for (int i = 0; i < numw; ++i) {
+        pthread_join(threads[i], NULL);
+        pthread_join(threads[numw + i], NULL);
+    }
+
+    int sumtotal = 0;
+    int multtotal = 0;
+    int matrixtotal = 0;
+
+    for (int i = 0; i < numw; ++i) {
+        sumtotal += global_stats[i]->sumtotal;
+        multtotal += global_stats[i]->multtotal;
+        matrixtotal += global_stats[i]->matrixtotal;
+    }
+
+    printf("sumtotal: %d\n", sumtotal);
+    printf("multtotal: %d\n", multtotal);
+    printf("matrixtotal: %d\n", matrixtotal);
+
     return 0;
     // ----------------------------------------------------------
 
