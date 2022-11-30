@@ -126,28 +126,23 @@ void *cons_worker(void *arg) {
             // doing calculation
             Matrix *m3 = MatrixMultiply(m1, m2);
 
-            thread_stats->multtotal++;
-
-            DisplayMatrix(m1, stdout);
-            printf("    X\n");
-            DisplayMatrix(m2, stdout);
-            printf("    =\n");
-
-            // free m2
-            FreeMatrix(m2);
-
-            // MatrixMultiply successful
+            // if MatrixMultiply is successful
             if (m3 != NULL) {
-                DisplayMatrix(m3, stdout);
+                thread_stats->multtotal++;
+                DisplayMatrix(m1, stdout);
+                printf("    X\n");
                 FreeMatrix(m1);
+                DisplayMatrix(m2, stdout);
+                printf("    =\n");
+                FreeMatrix(m2);
+                DisplayMatrix(m3, stdout);
                 FreeMatrix(m3);
                 printf("------------------------------\n");
                 break;
-            } else {
-                DisplayMatrix(m3, stdout);
-                printf("Fail match, retry with a new m2\n");
-                printf("------------------------------\n");
             }
+
+            // free m2
+            FreeMatrix(m2);
         }
     }
     return thread_stats;
