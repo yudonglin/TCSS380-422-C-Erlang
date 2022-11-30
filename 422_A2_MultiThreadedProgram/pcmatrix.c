@@ -94,39 +94,66 @@ int main (int argc, char * argv[])
 
     printf("main: begin \n");
 
-    numw = 4;
+    // initialize a global synchronized shared counter
+    counters_t *synchronized_shared_counter = malloc(sizeof(counters_t));
+    synchronized_shared_counter->cons = malloc(sizeof(counter_t));
+    init_cnt(synchronized_shared_counter->cons);
+    synchronized_shared_counter->prod = malloc(sizeof(counter_t));
+    init_cnt(synchronized_shared_counter->prod);
 
-    pthread_t threads[numw * 2];
-    ProdConsStats *global_stats[numw];
+    // an array of producer threads
+    pthread_t prod_threads[numw];
+    // an array of consumer threads
+    pthread_t cons_threads[numw];
 
+    // creating threads
     for (int i = 0; i < numw; ++i) {
-        global_stats[i] = malloc(sizeof(ProdConsStats));
-        global_stats[i]->sumtotal = 0;
-        global_stats[i]->multtotal = 0;
-        global_stats[i]->matrixtotal = 0;
-        pthread_create(&threads[i], NULL, prod_worker, global_stats[i]);
-        pthread_create(&threads[numw + i], NULL, cons_worker, global_stats[i]);
+        pthread_create(&prod_threads[i], NULL, prod_worker, synchronized_shared_counter);
+        pthread_create(&cons_threads[i], NULL, cons_worker, synchronized_shared_counter);
     }
 
+    // The sum of all elements of matrices produced.
+    int sum_total_prod = 0;
+    // The sum of all elements of matrices consumed.
+    int sum_total_cons = 0;
+    // The total number of matrices multiplied by consumer threads.
+    int multi_total = 0;
+    // The total number of matrices produced by producer threads.
+    int matrix_total_prod = 0;
+    // The total number of matrices consumed by consumer threads.
+    int matrix_total_cons = 0;
+
+    // pointer for retrieving the result ProdConsStats pointer from each thread
+    void *returnValue;
+    // join the all threads
     for (int i = 0; i < numw; ++i) {
-        pthread_join(threads[i], NULL);
-        pthread_join(threads[numw + i], NULL);
+        // join a producer thread
+        pthread_join(prod_threads[i], &returnValue);
+        // update data receive from producer thread and free the result pointer after updating the value
+        sum_total_prod += ((ProdConsStats *) returnValue)->sumtotal;
+        matrix_total_prod += ((ProdConsStats *) returnValue)->matrixtotal;
+        free(returnValue);
+        // join a consumer thread
+        pthread_join(cons_threads[i], &returnValue);
+        // update data receive from consumer thread and free the result pointer after updating the value
+        sum_total_cons += ((ProdConsStats *) returnValue)->sumtotal;
+        multi_total += ((ProdConsStats *) returnValue)->multtotal;
+        matrix_total_cons += ((ProdConsStats *) returnValue)->matrixtotal;
+        free(returnValue);
     }
 
-    int sumtotal = 0;
-    int multtotal = 0;
-    int matrixtotal = 0;
+    // display the result
+    printf("\nIn conclusion:\n");
+    printf("length of threads array: %d\n", numw);
+    printf("BOUNDED_BUFFER_SIZE: %d\n", BOUNDED_BUFFER_SIZE);
+    printf("Sum of Matrix elements --> Produced = %d Consumed = %d\n", sum_total_prod, sum_total_cons);
+    printf("multiplied: %d\n", multi_total);
+    printf("matrix total produced: %d\n", matrix_total_prod);
+    printf("matrix total consumed: %d\n", matrix_total_cons);
+    printf("all produced: %d\n", get_cnt(synchronized_shared_counter->prod));
+    printf("all consumed: %d\n", get_cnt(synchronized_shared_counter->cons));
 
-    for (int i = 0; i < numw; ++i) {
-        sumtotal += global_stats[i]->sumtotal;
-        multtotal += global_stats[i]->multtotal;
-        matrixtotal += global_stats[i]->matrixtotal;
-    }
-
-    printf("sumtotal: %d\n", sumtotal);
-    printf("multtotal: %d\n", multtotal);
-    printf("matrixtotal: %d\n", matrixtotal);
-
+    free(synchronized_shared_counter);
     return 0;
     // ----------------------------------------------------------
 

@@ -42,17 +42,19 @@ Matrix *get() {
     return temp;
 }
 
-Matrix *try_get(ProdConsStats * global_stats) {
+Matrix *try_get(ProdConsStats *thread_stats, counters_t *synchronized_shared_counter) {
     Matrix *temp = NULL;
     pthread_mutex_lock(&mutex);
     while (count == 0) {
         pthread_cond_wait(&full, &mutex);
     }
-    if (global_stats->multtotal < NUMBER_OF_MATRICES) {
+    if (get_cnt(synchronized_shared_counter->cons) < NUMBER_OF_MATRICES) {
         temp = get();
-        global_stats->multtotal++;
-        global_stats->matrixtotal++;
-        global_stats->sumtotal += SumMatrix(temp);
+        thread_stats->matrixtotal++;
+        thread_stats->sumtotal += SumMatrix(temp);
+        increment_cnt(synchronized_shared_counter->cons);
+    } else {
+        count--;
     }
     pthread_cond_signal(&empty);
     pthread_mutex_unlock(&mutex);
@@ -61,41 +63,52 @@ Matrix *try_get(ProdConsStats * global_stats) {
 
 // Matrix PRODUCER worker thread
 void *prod_worker(void *arg) {
-    // obtain the global stats
-    ProdConsStats *global_stats = arg;
+    // obtain the synchronized shared counter
+    counters_t *synchronized_shared_counter = arg;
+    // define ProdConsStats locally, so it can be returned to the main thread from pthread_join
+    ProdConsStats *thread_stats = malloc(sizeof(ProdConsStats));
+    thread_stats->sumtotal = 0;
+    thread_stats->matrixtotal = 0;
 
     Matrix *bm;
     while (1) {
         bm = GenMatrixRandom();
         pthread_mutex_lock(&mutex);
-        if (global_stats->multtotal >= NUMBER_OF_MATRICES) {
+        while (count >= BOUNDED_BUFFER_SIZE) {
+            pthread_cond_wait(&empty, &mutex);
+        }
+        if (get_cnt(synchronized_shared_counter->prod) >= NUMBER_OF_MATRICES) {
             FreeMatrix(bm);
+            count++;
+            pthread_cond_signal(&full);
             pthread_mutex_unlock(&mutex);
             break;
         }
-        while (count == BOUNDED_BUFFER_SIZE) {
-            pthread_cond_wait(&empty, &mutex);
-        }
         put(bm);
-        global_stats->matrixtotal++;
-        global_stats->sumtotal += SumMatrix(bm);
+        thread_stats->matrixtotal++;
+        thread_stats->sumtotal += SumMatrix(bm);
+        increment_cnt(synchronized_shared_counter->prod);
         pthread_cond_signal(&full);
         pthread_mutex_unlock(&mutex);
     }
-
-    return NULL;
+    return thread_stats;
 }
 
 // Matrix CONSUMER worker thread
 void *cons_worker(void *arg) {
-    // obtain the global stats
-    ProdConsStats *global_stats = arg;
+    // obtain the synchronized shared counter
+    counters_t *synchronized_shared_counter = arg;
+    // define ProdConsStats locally, so it can be returned to the main thread from pthread_join
+    ProdConsStats *thread_stats = malloc(sizeof(ProdConsStats));
+    thread_stats->sumtotal = 0;
+    thread_stats->multtotal = 0;
+    thread_stats->matrixtotal = 0;
 
     Matrix *m1;
     Matrix *m2;
     while (1) {
         // obtain first matrix m1
-        m1 = try_get(global_stats);
+        m1 = try_get(thread_stats, synchronized_shared_counter);
         // the NUMBER_OF_MATRICES has been reach, exit
         if (m1 == NULL) {
             break;
@@ -103,14 +116,17 @@ void *cons_worker(void *arg) {
 
         // try to obtain a valid m2 and do the calculation
         while (1) {
-            m2 = try_get(global_stats);
+            m2 = try_get(thread_stats, synchronized_shared_counter);
             // the NUMBER_OF_MATRICES has been reach, exit
             if (m2 == NULL) {
-                return NULL;
+                FreeMatrix(m1);
+                return thread_stats;
             }
 
             // doing calculation
             Matrix *m3 = MatrixMultiply(m1, m2);
+
+            thread_stats->multtotal++;
 
             DisplayMatrix(m1, stdout);
             printf("    X\n");
@@ -130,7 +146,9 @@ void *cons_worker(void *arg) {
             } else {
                 DisplayMatrix(m3, stdout);
                 printf("Fail match, retry with a new m2\n");
+                printf("------------------------------\n");
             }
         }
     }
+    return thread_stats;
 }
