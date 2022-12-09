@@ -1,5 +1,11 @@
-*/cmake-build-debug/*
-*/.idea/*
-.idea/*
+*/cmake-build-debug/
+*/.idea/
 .vs*/
 *.beam
+*.cmd
+*.ko
+*.order
+*.symvers
+*.o
+*.mod.c
+*.mod
