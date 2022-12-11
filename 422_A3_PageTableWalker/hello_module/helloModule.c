@@ -13,6 +13,8 @@ unsigned long virt2phys(struct mm_struct *mm, unsigned long vpage) {
     pmd_t *pmd;
     pte_t *pte;
     struct page *page;
+    unsigned long int physical_page_addr;
+
     pgd = pgd_offset(mm, vpage);
 
     if (pgd_none(*pgd) || pgd_bad(*pgd)) {
@@ -40,7 +42,7 @@ unsigned long virt2phys(struct mm_struct *mm, unsigned long vpage) {
         return 0;
     }
 
-    unsigned long int physical_page_addr = page_to_phys(page);
+    physical_page_addr = page_to_phys(page);
 
     pte_unmap(pte);
 
@@ -56,11 +58,11 @@ int proc_count(void) {
     struct task_struct *task;
     for_each_process(task)
     {
+        struct vm_area_struct *vma;
+        unsigned long int vpage;
+        unsigned long int total_pages = 0;
         if (task->pid > MIN_PID) {
             i++;
-            struct vm_area_struct *vma;
-            unsigned long int vpage;
-            unsigned long int total_pages = 0;
             if (task->mm && task->mm->mmap) {
                 for (vma = task->mm->mmap; vma; vma = vma->vm_next) {
                     for (vpage = vma->vm_start; vpage < vma->vm_end; vpage += PAGE_SIZE) {
