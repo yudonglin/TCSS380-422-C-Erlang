@@ -3,6 +3,15 @@
 #include<linux/pid_namespace.h>
 #include<asm/io.h>
 
+/*
+ *
+ * commands:
+ * sudo rmmod ./procReport.ko
+ * sudo insmod ./procReport.ko
+ * tail -n 10 /var/log/syslog
+ *
+ */
+
 unsigned long virt2phys(struct mm_struct *mm, unsigned long vpage);
 
 int proc_init(void);
@@ -29,7 +38,6 @@ int proc_init(void) {
 
     /* A counter for current total pages */
     unsigned long int curTotal = 0;
-
 
     struct task_struct *task;
     struct vm_area_struct *vma;
