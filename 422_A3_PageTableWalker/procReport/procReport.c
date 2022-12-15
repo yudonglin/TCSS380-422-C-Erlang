@@ -152,7 +152,7 @@ unsigned long virt2phys(struct mm_struct *mm, unsigned long vpage) {
 // post: NULL
 void proc_cleanup(void) {
     printk(KERN_INFO
-    "helloModule: performing cleanup of module\n");
+    "procReport: performing cleanup of module\n");
 }
 
 MODULE_LICENSE("GPL");
